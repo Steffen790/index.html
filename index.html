@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>TV Tube Player</title>
+<style>html,body,#p{margin:0;width:100%;height:100%;background:#000;overflow:hidden}</style>
+</head><body><div id="p"></div>
+<script>
+// Player-Brücke für TV Tube: läuft auf einer echten https-Adresse, damit YouTube einbettet.
+var yt = null, ready = false, queue = [];
+function send(m) { parent.postMessage(m, '*'); }
+function run(m) {
+  if (!ready) { queue.push(m); return; }
+  if (m.cmd === 'load') yt.loadVideoById(m.id);
+  else if (m.cmd === 'play') yt.playVideo();
+  else if (m.cmd === 'pause') yt.pauseVideo();
+  else if (m.cmd === 'stop') yt.stopVideo();
+  else if (m.cmd === 'seek') yt.seekTo(Math.max(0, m.abs ? m.t : yt.getCurrentTime() + m.t), true);
+}
+window.addEventListener('message', function (e) { if (e.data && e.data.cmd) run(e.data); });
+window.onYouTubeIframeAPIReady = function () {
+  yt = new YT.Player('p', {
+    width: '100%', height: '100%',
+    playerVars: { autoplay: 1, controls: 0, rel: 0, iv_load_policy: 3, playsinline: 1, fs: 0, disablekb: 1, origin: location.origin },
+    events: {
+      onReady: function () { ready = true; queue.splice(0).forEach(run); send({ type: 'ready' }); },
+      onStateChange: function (e) { send({ type: 'state', state: e.data }); },
+      onError: function (e) { send({ type: 'error', code: e.data }); }
+    }
+  });
+};
+setInterval(function () {
+  if (ready) send({ type: 'time', t: yt.getCurrentTime() || 0, d: yt.getDuration() || 0, state: yt.getPlayerState() });
+}, 500);
+</script>
+<script src="https://www.youtube.com/iframe_api"></script>
+</body></html>
